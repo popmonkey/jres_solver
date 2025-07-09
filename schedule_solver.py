@@ -79,7 +79,7 @@ def formulate_and_solve(data):
             A_row[d * num_stints + s] = 1
         constraints.append((A_row, 1, 1))
 
-    # Constraint 2: Drive must be available
+    # Add explicit constraints for availability
     for s in range(num_stints):
         race_start_utc = datetime.datetime.strptime(data['raceStartUTC'], "%Y-%m-%dT%H:%M:%S.%fZ")
         stint_start_time = race_start_utc + datetime.timedelta(seconds=s * stint_with_pit_seconds)
@@ -89,12 +89,11 @@ def formulate_and_solve(data):
         for d in range(num_drivers):
             driver_name = driver_pool[d]['name']
             if data['availability'][driver_name].get(availability_key, 'Unavailable') == 'Unavailable':
-                # This driver is unavailable, so their variable for this stint MUST be 0.
                 A_row = np.zeros_like(c)
                 A_row[d * num_stints + s] = 1
-                constraints.append((A_row, 0, 0)) # Lower and Upper bound are both 0
+                constraints.append((A_row, 0, 0))
 
-    # Constraint 3: Max consecutive stints
+    # Other constraints remain the same...
     for d in range(num_drivers):
         max_consecutive = driver_pool[d]['preferredStints']
         for s in range(num_stints - max_consecutive):
@@ -103,7 +102,6 @@ def formulate_and_solve(data):
                 A_row[d * num_stints + s + i] = 1
             constraints.append((A_row, -np.inf, max_consecutive))
 
-    
     for s in range(1, num_stints):
         for d in range(num_drivers):
             A_row = np.zeros_like(c)
@@ -139,9 +137,6 @@ def formulate_and_solve(data):
     return res, data, total_stints, stint_laps, lap_time_seconds, pit_time_seconds, driver_pool
     
 def process_driver_results(res, data, total_stints, stint_laps, driver_pool):
-    """
-    Processes the driver solver result and prepares the initial schedule.
-    """
     if not res.success:
         logging.error("Could not find an optimal driver schedule.")
         logging.error(f"Solver message: {res.message}")
@@ -156,15 +151,11 @@ def process_driver_results(res, data, total_stints, stint_laps, driver_pool):
     return schedule_drivers
 
 def generate_spotter_schedule(driver_schedule, data, stint_with_pit_seconds):
-    """
-    Generates a spotter schedule based on the optimized driver schedule.
-    """
     logging.info("--- Generating Spotter Schedule ---")
     spotter_pool = [m for m in data['teamMembers'] if m['role'] in ['Driver and Spotter', 'Spotter Only']]
     last_active = {member['name']: -1 for member in data['teamMembers']}
     full_schedule = []
     for s, driver_name in enumerate(driver_schedule):
-        # Update last active time for the driver of this stint
         last_active[driver_name] = s
         stint_start_time = datetime.datetime.strptime(data['raceStartUTC'], "%Y-%m-%dT%H:%M:%S.%fZ") + datetime.timedelta(seconds=s * stint_with_pit_seconds)
         key_time = stint_start_time.replace(minute=0, second=0, microsecond=0)
@@ -179,15 +170,12 @@ def generate_spotter_schedule(driver_schedule, data, stint_with_pit_seconds):
             if score > highest_score:
                 highest_score = score
                 best_spotter = spotter_name
-        
-        # Update last active time for the chosen spotter
         if best_spotter != "N/A":
             last_active[best_spotter] = s
         full_schedule.append({"stint": s + 1, "driver": driver_name, "spotter": best_spotter})
     return full_schedule
 
 def generate_hourly_summary(schedule, data):
-    """Generates a per-member sequential hourly schedule summary."""
     logging.info("--- Generating Hourly Summary ---")
     race_duration_hours = math.ceil(data['durationHours'])
     member_schedules = {m['name']: {"schedule": ["Resting"] * race_duration_hours, "tz": m['timezone']} for m in data['teamMembers']}
@@ -211,7 +199,6 @@ def generate_hourly_summary(schedule, data):
     return member_schedules
 
 def generate_member_itineraries(schedule, data, pit_time_seconds):
-    """Generates a detailed, localized itinerary for each team member, consolidating consecutive duties and adding rest periods."""
     logging.info("--- Generating Per-Member Itineraries ---")
     raw_duties = {member['name']: [] for member in data['teamMembers']}
     for entry in schedule:
@@ -267,23 +254,39 @@ def format_duration(duration_delta):
 
 def print_to_stdout(schedule, driver_summary, spotter_summary, hourly_summary, member_itineraries):
     if not schedule: return
-    print("\n" + "="*85)
-    print(f"{'Stint':<6} | {'Start Time (UTC)':<20} | {'End Time (UTC)':<20} | {'Assigned Driver':<20} | {'Assigned Spotter'}")
-    print("-" * 85)
-    for entry in schedule: print(f"{entry['stint']:<6} | {entry['startTimeUTC']:<20} | {entry['endTimeUTC']:<20} | {entry['driver']:<20} | {entry['spotter']}")
-    print("="*85 + "\n")
+    
+    spotters_scheduled = any(entry.get('spotter', 'N/A') != 'N/A' for entry in schedule)
+
+    if spotters_scheduled:
+        print("\n" + "="*85)
+        print(f"{'Stint':<6} | {'Start Time (UTC)':<20} | {'End Time (UTC)':<20} | {'Assigned Driver':<20} | {'Assigned Spotter'}")
+        print("-" * 85)
+        for entry in schedule: print(f"{entry['stint']:<6} | {entry['startTimeUTC']:<20} | {entry['endTimeUTC']:<20} | {entry['driver']:<20} | {entry['spotter']}")
+        print("="*85 + "\n")
+    else:
+        print("\n" + "="*62)
+        print(f"{'Stint':<6} | {'Start Time (UTC)':<20} | {'End Time (UTC)':<20} | {'Assigned Driver'}")
+        print("-" * 62)
+        for entry in schedule: print(f"{entry['stint']:<6} | {entry['startTimeUTC']:<20} | {entry['endTimeUTC']:<20} | {entry['driver']}")
+        print("="*62 + "\n")
+
+
     if driver_summary:
         print("--- Driver Summary ---")
         print(f"{'Driver':<20} | {'Total Stints':<15} | {'Total Laps'}")
         print("-" * 50)
         for name, stats in driver_summary.items(): print(f"{name:<20} | {stats['stints']:<15} | {stats['laps']}")
         print("-" * 50 + "\n")
-    if spotter_summary:
+    
+    if spotter_summary and any(stats['stints'] > 0 for stats in spotter_summary.values()):
         print("--- Spotter Summary ---")
         print(f"{'Spotter':<20} | {'Total Stints'}")
         print("-" * 35)
-        for name, stats in spotter_summary.items(): print(f"{name:<20} | {stats['stints']}")
+        for name, stats in spotter_summary.items():
+            if stats['stints'] > 0:
+                print(f"{name:<20} | {stats['stints']}")
         print("-" * 35 + "\n")
+
     if hourly_summary:
         print("--- Per-Member Hourly Schedule (Sequential Hours from Race Start) ---")
         max_hours = len(next(iter(hourly_summary.values()))['schedule']) if hourly_summary else 0
@@ -313,17 +316,29 @@ def print_to_stdout(schedule, driver_summary, spotter_summary, hourly_summary, m
 
 def write_to_file(schedule, filename):
     if not schedule: return
+    
     for entry in schedule:
         if 'laps' not in entry: entry['laps'] = 0
+
+    spotters_scheduled = any(entry.get('spotter', 'N/A') != 'N/A' for entry in schedule)
+    
     if filename.lower().endswith('.csv'):
         logging.info(f"Writing schedule to CSV: {filename}")
-        fieldnames = ["stint", "startTimeUTC", "endTimeUTC", "driver", "spotter", "laps"]
+        fieldnames = ["stint", "startTimeUTC", "endTimeUTC", "driver", "laps"]
+        if spotters_scheduled:
+            fieldnames.insert(4, "spotter")
         with open(filename, 'w', newline='') as csvfile:
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
+            if not spotters_scheduled:
+                for entry in schedule:
+                    entry.pop('spotter', None) # Remove spotter if not needed
             writer.writerows(schedule)
     elif filename.lower().endswith('.json'):
         logging.info(f"Writing schedule to JSON: {filename}")
+        if not spotters_scheduled:
+            for entry in schedule:
+                entry.pop('spotter', None)
         with open(filename, 'w') as jsonfile:
             json.dump(schedule, jsonfile, indent=4)
     else:
@@ -334,7 +349,10 @@ def main():
     parser.add_argument('input_file', nargs='?', default=None, help="Path to the race_data.json file. If omitted, reads from stdin.")
     parser.add_argument('--output-csv', help="Path to save the schedule as a CSV file.")
     parser.add_argument('--output-json', help="Path to save the schedule as a JSON file.")
+    parser.add_argument('--with-spotters', action='store_true', help="Additionally generate and display a spotter schedule.")
+    parser.add_argument('--with-itineraries', action='store_true', help="Additionally display per-member itineraries and hourly summaries.")
     args = parser.parse_args()
+
     try:
         if args.input_file:
             logging.info(f"--- Reading Race Data from file: {args.input_file} ---")
@@ -349,27 +367,50 @@ def main():
         logging.error("Invalid JSON data provided.")
         return
     res, data, total_stints, stint_laps, lap_time_seconds, pit_time_seconds, driver_pool = formulate_and_solve(data)
+    
     driver_schedule = process_driver_results(res, data, total_stints, stint_laps, driver_pool)
+
     if driver_schedule:
-        stint_with_pit_seconds = (stint_laps * lap_time_seconds) + pit_time_seconds
-        full_schedule_assignments = generate_spotter_schedule(driver_schedule, data, stint_with_pit_seconds)
+        if args.with_spotters:
+            stint_with_pit_seconds = (stint_laps * lap_time_seconds) + pit_time_seconds
+            full_schedule_assignments = generate_spotter_schedule(driver_schedule, data, stint_with_pit_seconds)
+        else:
+            full_schedule_assignments = [{"stint": s + 1, "driver": driver_name, "spotter": "N/A"} for s, driver_name in enumerate(driver_schedule)]
+        
         final_schedule_output = []
         driver_summary = {driver['name']: {'stints': 0, 'laps': 0} for driver in driver_pool}
         spotter_summary = {member['name']: {'stints': 0} for member in data['teamMembers'] if member['role'] in ['Driver and Spotter', 'Spotter Only']}
+        
         race_start_utc = datetime.datetime.strptime(data['raceStartUTC'], "%Y-%m-%dT%H:%M:%S.%fZ")
         current_time = race_start_utc
+
         for assignment in full_schedule_assignments:
             start_time = current_time
             end_time = current_time + datetime.timedelta(seconds=stint_laps * lap_time_seconds)
-            final_schedule_output.append({"stint": assignment['stint'], "startTimeUTC": start_time.strftime('%Y-%m-%d %H:%M:%S'), "endTimeUTC": end_time.strftime('%Y-%m-%d %H:%M:%S'), "driver": assignment['driver'], "spotter": assignment['spotter'], "laps": stint_laps})
+            
+            final_schedule_output.append({
+                "stint": assignment['stint'],
+                "startTimeUTC": start_time.strftime('%Y-%m-%d %H:%M:%S'),
+                "endTimeUTC": end_time.strftime('%Y-%m-%d %H:%M:%S'),
+                "driver": assignment['driver'],
+                "spotter": assignment['spotter'],
+                "laps": stint_laps
+            })
+            
             if assignment['driver'] in driver_summary:
                 driver_summary[assignment['driver']]['stints'] += 1
                 driver_summary[assignment['driver']]['laps'] += stint_laps
             if assignment['spotter'] in spotter_summary:
                 spotter_summary[assignment['spotter']]['stints'] += 1
+            
             current_time = end_time + datetime.timedelta(seconds=pit_time_seconds)
-        hourly_summary = generate_hourly_summary(final_schedule_output, data)
-        member_itineraries = generate_member_itineraries(final_schedule_output, data, pit_time_seconds)
+        
+        hourly_summary = None
+        member_itineraries = None
+        if args.with_itineraries:
+            hourly_summary = generate_hourly_summary(final_schedule_output, data)
+            member_itineraries = generate_member_itineraries(final_schedule_output, data, pit_time_seconds)
+
         print_to_stdout(final_schedule_output, driver_summary, spotter_summary, hourly_summary, member_itineraries)
         if args.output_csv: write_to_file(final_schedule_output, args.output_csv)
         if args.output_json: write_to_file(final_schedule_output, args.output_json)
