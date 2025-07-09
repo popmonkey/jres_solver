@@ -20,7 +20,6 @@ def solve_unified_schedule(data):
     Formulates and solves the unified driver and spotter scheduling problem using PuLP.
     """
     # --- 2. Calculate Race Parameters ---
-    # FIX: Use the pre-calculated seconds from the JSON data
     lap_time_seconds = data['avgLapTimeInSeconds']
     pit_time_seconds = data['pitTimeInSeconds']
     
@@ -118,6 +117,16 @@ def solve_unified_schedule(data):
         total_spotter_stints = pulp.lpSum(spot_vars[(spotter_name, s)] for s in stints)
         prob += max_spot_stints >= total_spotter_stints, f"DefineMaxSpot_{spotter_name}"
         prob += min_spot_stints <= total_spotter_stints, f"DefineMinSpot_{spotter_name}"
+
+    max_busy_hours = 6
+    stints_in_max_busy_period = math.floor((max_busy_hours * 3600) / stint_with_pit_seconds) if stint_with_pit_seconds > 0 else 0
+    logging.info(f"Adding constraint: No member can be active for more than {stints_in_max_busy_period} consecutive stints (~{max_busy_hours} hours).")
+
+    for member in data['teamMembers']:
+        member_name = member['name']
+        for s in range(total_stints - stints_in_max_busy_period):
+            prob += pulp.lpSum(is_active_vars[(member_name, s + i)] for i in range(stints_in_max_busy_period + 1)) <= stints_in_max_busy_period, f"MaxBusy_{member_name}_{s}"
+
 
     # --- 4. Solve the Problem ---
     logging.info("--- Solving... (This may take a moment) ---")
