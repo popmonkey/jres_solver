@@ -76,6 +76,18 @@ def solve_driver_only_schedule(data):
     # --- Constraints ---
     logging.info("--- Adding Constraints to Model ---")
 
+    # NEW CONSTRAINT: First Stint Driver
+    if data.get('firstStintDriver'):
+        first_driver = data['firstStintDriver']
+        # Check if the specified first driver is in the pool of eligible drivers
+        if any(d['name'] == first_driver for d in driver_pool):
+            logging.info(f"Adding constraint: First stint must be driven by {first_driver}")
+            prob += drive_vars[(first_driver, 0)] == 1, "FirstStintDriver"
+        else:
+            # This case should ideally be caught by the exporter, but good to have a fallback.
+            logging.warning(f"FirstStintDriver '{first_driver}' is not an eligible driver (check role). Constraint will be ignored.")
+
+
     for s in stints:
         prob += pulp.lpSum(drive_vars.get((m['name'], s), 0) for m in driver_pool) == 1, f"OneDriver_Stint_{s}"
 
