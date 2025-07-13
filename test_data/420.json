@@ -1,0 +1,103 @@
+{
+  "success": true,
+  "availability": {
+    "Nikki": {
+      "2025-07-11T22:00:00.000Z": "Preferred",
+      "2025-07-11T23:00:00.000Z": "Preferred",
+      "2025-07-12T00:00:00.000Z": "Available",
+      "2025-07-12T01:00:00.000Z": "Available",
+      "2025-07-12T02:00:00.000Z": "Available",
+      "2025-07-12T03:00:00.000Z": "Preferred",
+      "2025-07-12T04:00:00.000Z": "Preferred"
+    },
+    "Ayrton": {
+      "2025-07-11T22:00:00.000Z": "Available",
+      "2025-07-11T23:00:00.000Z": "Available",
+      "2025-07-12T00:00:00.000Z": "Available",
+      "2025-07-12T01:00:00.000Z": "Available",
+      "2025-07-12T02:00:00.000Z": "Available",
+      "2025-07-12T03:00:00.000Z": "Available",
+      "2025-07-12T04:00:00.000Z": "Available"
+    },
+    "Jack": {
+      "2025-07-11T22:00:00.000Z": "Unavailable",
+      "2025-07-11T23:00:00.000Z": "Unavailable",
+      "2025-07-12T00:00:00.000Z": "Available",
+      "2025-07-12T01:00:00.000Z": "Available",
+      "2025-07-12T02:00:00.000Z": "Available",
+      "2025-07-12T03:00:00.000Z": "Available",
+      "2025-07-12T04:00:00.000Z": "Available"
+    },
+    "James": {
+      "2025-07-11T22:00:00.000Z": "Available",
+      "2025-07-11T23:00:00.000Z": "Available",
+      "2025-07-12T00:00:00.000Z": "Preferred",
+      "2025-07-12T01:00:00.000Z": "Preferred",
+      "2025-07-12T02:00:00.000Z": "Preferred",
+      "2025-07-12T03:00:00.000Z": "Available",
+      "2025-07-12T04:00:00.000Z": "Available"
+    },
+    "Mario": {
+      "2025-07-11T22:00:00.000Z": "Available",
+      "2025-07-11T23:00:00.000Z": "Available",
+      "2025-07-12T00:00:00.000Z": "Available",
+      "2025-07-12T01:00:00.000Z": "Available",
+      "2025-07-12T02:00:00.000Z": "Available",
+      "2025-07-12T03:00:00.000Z": "Available",
+      "2025-07-12T04:00:00.000Z": "Available"
+    },
+    "Ricky": {
+      "2025-07-11T22:00:00.000Z": "Available",
+      "2025-07-11T23:00:00.000Z": "Available",
+      "2025-07-12T00:00:00.000Z": "Available",
+      "2025-07-12T01:00:00.000Z": "Available",
+      "2025-07-12T02:00:00.000Z": "Available",
+      "2025-07-12T03:00:00.000Z": "Unavailable",
+      "2025-07-12T04:00:00.000Z": "Unavailable"
+    }
+  },
+  "teamMembers": [
+    {
+      "name": "Nikki",
+      "timezone": "1",
+      "role": "Driver and Spotter",
+      "preferredStints": 1
+    },
+    {
+      "name": "Ayrton",
+      "timezone": "-3",
+      "role": "Driver Only",
+      "preferredStints": 2
+    },
+    {
+      "name": "Jack",
+      "timezone": "11",
+      "role": "Driver and Spotter",
+      "preferredStints": 3
+    },
+    {
+      "name": "James",
+      "timezone": "0",
+      "role": "Driver and Spotter",
+      "preferredStints": 2
+    },
+    {
+      "name": "Mario",
+      "timezone": "-5",
+      "role": "Driver and Spotter",
+      "preferredStints": 1
+    },
+    {
+      "name": "Ricky",
+      "timezone": "-6",
+      "role": "Spotter Only",
+      "preferredStints": 2
+    }
+  ],
+  "durationHours": 4.333333333333333,
+  "raceStartUTC": "2025-07-11T23:00:00.000Z",
+  "avgLapTimeInSeconds": 90.5,
+  "fuelTankSize": 99,
+  "fuelUsePerLap": 4.1,
+  "pitTimeInSeconds": 107
+}
