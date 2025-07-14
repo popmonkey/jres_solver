@@ -15,7 +15,7 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-def solve_driver_only_schedule(data):
+def solve_driver_only_schedule(data, time_limit):
     """
     Formulates and solves the DRIVER-ONLY scheduling problem using PuLP.
     """
@@ -69,24 +69,20 @@ def solve_driver_only_schedule(data):
     # --- Objective Function: Minimize a weighted cost ---
     prob += (
         (max_drive_stints - min_drive_stints) * 1000 +  # P1: Balance driver workload
-        pulp.lpSum(switch_vars[(d['name'], s)] for d in driver_pool for s in stints if s > 0) * 100 - # P2: Maximize rest
+        pulp.lpSum(switch_vars.get((d['name'], s), 0) for d in driver_pool for s in stints if s > 0) * 100 - # P2: Maximize rest (minimize switches)
         pulp.lpSum(drive_vars[(d['name'], s)] * preference_scores.get((d['name'], s), 0) for d in driver_pool for s in stints) # P3: Reward preferred slots
     ), "Weighted_Cost"
 
     # --- Constraints ---
     logging.info("--- Adding Constraints to Model ---")
 
-    # NEW CONSTRAINT: First Stint Driver
     if data.get('firstStintDriver'):
         first_driver = data['firstStintDriver']
-        # Check if the specified first driver is in the pool of eligible drivers
         if any(d['name'] == first_driver for d in driver_pool):
             logging.info(f"Adding constraint: First stint must be driven by {first_driver}")
             prob += drive_vars[(first_driver, 0)] == 1, "FirstStintDriver"
         else:
-            # This case should ideally be caught by the exporter, but good to have a fallback.
-            logging.warning(f"FirstStintDriver '{first_driver}' is not an eligible driver (check role). Constraint will be ignored.")
-
+            logging.warning(f"FirstStintDriver '{first_driver}' is not an eligible driver. Constraint ignored.")
 
     for s in stints:
         prob += pulp.lpSum(drive_vars.get((m['name'], s), 0) for m in driver_pool) == 1, f"OneDriver_Stint_{s}"
@@ -118,9 +114,27 @@ def solve_driver_only_schedule(data):
         for s in range(total_stints - max_consecutive):
             prob += pulp.lpSum(drive_vars[(driver_name, s+i)] for i in range(max_consecutive + 1)) <= max_consecutive, f"MaxConsecutive_{driver_name}_{s}"
 
+        min_rest_hours = driver.get('minimumRestHours', 0)
+        if min_rest_hours > 0:
+            min_rest_stints = math.floor((min_rest_hours * 3600) / stint_with_pit_seconds)
+            if min_rest_stints > 0:
+                logging.info(f"Adding constraint for {driver_name}: At least one rest period of >= {min_rest_stints} stints.")
+                
+                possible_rest_starts = range(total_stints - min_rest_stints + 1)
+                rest_block_achieved = pulp.LpVariable.dicts(f"RestAchieved_{driver_name}", possible_rest_starts, cat='Binary')
+                
+                prob += pulp.lpSum(rest_block_achieved[s] for s in possible_rest_starts) >= 1, f"MustHaveOneRest_{driver_name}"
+
+                M = min_rest_stints + 1
+                for s in possible_rest_starts:
+                    prob += pulp.lpSum(drive_vars[(driver_name, s + i)] for i in range(min_rest_stints)) <= M * (1 - rest_block_achieved[s]), f"EnforceRest_{driver_name}_{s}"
+
+
     # --- 4. Solve the Problem ---
-    logging.info("--- Solving... (This may take a moment) ---")
-    prob.solve(pulp.PULP_CBC_CMD(msg=1))
+    logging.info(f"--- Solving... (Time limit: {time_limit} seconds) ---")
+    # FIX: Use msg=0 to suppress the solver's detailed progress messages.
+    solver = pulp.PULP_CBC_CMD(msg=0, timeLimit=time_limit)
+    prob.solve(solver)
     
     return prob, data, total_stints, stint_laps, driver_pool, drive_vars
 
@@ -128,11 +142,12 @@ def solve_driver_only_schedule(data):
 def process_results(prob, total_stints, driver_pool, drive_vars):
     """Processes the PuLP result and prepares the raw schedule assignments."""
     if prob.status != pulp.LpStatusOptimal:
-        logging.error("Could not find an optimal solution.")
-        logging.error(f"Solver status: {pulp.LpStatus[prob.status]}")
-        return None
+        logging.warning("Solver did not find an optimal solution (may be due to time limit).")
+        if prob.status == pulp.LpStatusNotSolved:
+             logging.error("Problem is likely infeasible or too complex for the time limit.")
+             return None
 
-    logging.info("Optimal Schedule Found!")
+    logging.info("Schedule Found!")
     schedule = []
     for s in range(total_stints):
         assigned_driver = "N/A"
@@ -151,6 +166,7 @@ def main():
     parser = argparse.ArgumentParser(description="Solve for an optimal endurance race schedule.")
     parser.add_argument('input_file', nargs='?', default=None, help="Path to the race_data.json file. If omitted, reads from stdin.")
     parser.add_argument('--output', required=True, help="Path to save the raw schedule results as a JSON file.")
+    parser.add_argument('--time-limit', type=int, default=5, help="Maximum time in seconds to let the solver run. Default is 5.")
     args = parser.parse_args()
 
     try:
@@ -164,7 +180,7 @@ def main():
         logging.error(f"Failed to read or parse input data: {e}")
         return
 
-    prob, data, total_stints, stint_laps, driver_pool, drive_vars = solve_driver_only_schedule(data)
+    prob, data, total_stints, stint_laps, driver_pool, drive_vars = solve_driver_only_schedule(data, args.time_limit)
     
     schedule_assignments = process_results(prob, total_stints, driver_pool, drive_vars)
 
