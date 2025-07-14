@@ -10,7 +10,6 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
-# --- 1. Setup Logging ---
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
@@ -28,7 +27,7 @@ def format_duration(duration_delta):
     else: return ""
 
 def generate_member_itineraries(schedule, data, pit_time_seconds):
-    """Generates a detailed, localized itinerary for each team member, consolidating consecutive duties and adding rest periods."""
+    """Generates a detailed, localized itinerary for each team member."""
     logging.info("--- Generating Per-Member Itineraries ---")
     raw_duties = {member['name']: [] for member in data['teamMembers']}
     for entry in schedule:
@@ -97,14 +96,11 @@ def generate_member_itineraries(schedule, data, pit_time_seconds):
         
     return final_itineraries
 
-
 def write_to_xlsx(schedule, driver_summary, spotter_summary, member_itineraries, filename):
-    """Writes all schedule data and summaries to a multi-sheet XLSX file with calendar view."""
+    """Writes all schedule data to a multi-sheet XLSX file."""
     logging.info(f"Writing full schedule report to XLSX: {filename}")
-    
     wb = Workbook()
     
-    # --- Sheet 1: Summaries ---
     ws_summary = wb.active
     ws_summary.title = "Summaries"
     bold_font = Font(bold=True)
@@ -123,28 +119,21 @@ def write_to_xlsx(schedule, driver_summary, spotter_summary, member_itineraries,
         if stats['stints'] > 0:
             ws_summary.append([name, stats['stints']])
 
-    # --- Sheet 2: Master Schedule ---
     ws_master = wb.create_sheet("Master Schedule (UTC)")
     ws_master.append(["Stint", "Start Time (UTC)", "End Time (UTC)", "Assigned Driver", "Assigned Spotter", "Laps"])
     for cell in ws_master["1:1"]: cell.font = bold_font
     for entry in schedule:
         ws_master.append([entry['stint'], entry['startTimeUTC'], entry['endTimeUTC'], entry['driver'], entry['spotter'], entry['laps']])
 
-    # --- Per-Member Itinerary Calendar Sheets ---
-    fills = {
-        "Driving": PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid"),
-        "Spotting": PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid"),
-        "Resting": PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
-    }
+    fills = {"Driving": PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid"), "Spotting": PatternFill(start_color="FFEB9C", end_color="FFEB9C", fill_type="solid"), "Resting": PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")}
     thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
     center_align = Alignment(horizontal='center', vertical='center', wrap_text=True)
 
     for name, itinerary in member_itineraries.items():
         if not itinerary: continue
         
-        ws_member = wb.create_sheet(name[:30]) # Sheet name limit is 31 chars
+        ws_member = wb.create_sheet(name[:30])
         
-        # Create a pandas DataFrame for the calendar grid
         start_date = itinerary[0]['start_local'].date()
         end_date = itinerary[-1]['end_local'].date()
         date_range = pd.date_range(start_date, end_date)
@@ -153,17 +142,11 @@ def write_to_xlsx(schedule, driver_summary, spotter_summary, member_itineraries,
         index = [f"{h:02d}:{m:02d}" for h in range(24) for m in range(0, 60, 15)]
         df = pd.DataFrame(index=index, columns=columns)
 
-        # Populate the DataFrame with activities
         for duty in itinerary:
-            start = duty['start_local']
-            end = duty['end_local']
-            
+            start, end = duty['start_local'], duty['end_local']
             current_time = start
             while current_time < end:
-                date_str = current_time.strftime('%Y-%m-%d')
-                time_str = current_time.strftime('%H:%M')
-                
-                # Find the correct 15-minute block
+                date_str, time_str = current_time.strftime('%Y-%m-%d'), current_time.strftime('%H:%M')
                 minute_block = (current_time.minute // 15) * 15
                 time_index = f"{current_time.hour:02d}:{minute_block:02d}"
 
@@ -172,7 +155,6 @@ def write_to_xlsx(schedule, driver_summary, spotter_summary, member_itineraries,
                 
                 current_time += datetime.timedelta(minutes=15)
         
-        # Write DataFrame to Excel sheet
         ws_member.cell(row=1, column=1, value=f"Schedule for {name}").font = bold_font
         ws_member.cell(row=2, column=1, value="Time (Local)").font = bold_font
         for c_idx, col_name in enumerate(df.columns, 2):
@@ -188,65 +170,77 @@ def write_to_xlsx(schedule, driver_summary, spotter_summary, member_itineraries,
                 cell.border = thin_border
                 cell.alignment = center_align
 
-    # Auto-size columns for all sheets
     for sheet in wb.worksheets:
         for col in sheet.columns:
             sheet.column_dimensions[col[0].column_letter].width = 15
 
     wb.save(filename)
 
+def write_to_csv(schedule, filename):
+    """Writes the master schedule to a CSV file."""
+    logging.info(f"Writing master schedule to CSV: {filename}")
+    headers = ["Stint", "Start Time (UTC)", "End Time (UTC)", "Assigned Driver", "Assigned Spotter", "Laps"]
+    with open(filename, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(headers)
+        for entry in schedule:
+            writer.writerow([entry['stint'], entry['startTimeUTC'], entry['endTimeUTC'], entry['driver'], entry['spotter'], entry['laps']])
+
+def write_to_txt(schedule, driver_summary, spotter_summary, member_itineraries, filename):
+    """Writes all schedule data to a text file."""
+    logging.info(f"Generating TXT report to file: {filename}")
+    with open(filename, 'w') as f:
+        f.write("\n" + "="*80 + "\n--- DRIVER SUMMARY ---\n" + "="*80 + "\n")
+        f.write(f"{'Driver':<20} | {'Total Stints':<15} | {'Total Laps':<15}\n" + "-" * 80 + "\n")
+        for name, stats in driver_summary.items(): f.write(f"{name:<20} | {stats['stints']:<15} | {stats['laps']:<15}\n")
+
+        f.write("\n" + "="*80 + "\n--- SPOTTER SUMMARY ---\n" + "="*80 + "\n")
+        f.write(f"{'Spotter':<20} | {'Total Stints':<15}\n" + "-" * 80 + "\n")
+        for name, stats in spotter_summary.items():
+            if stats['stints'] > 0: f.write(f"{name:<20} | {stats['stints']:<15}\n")
+        
+        f.write("\n" + "="*80 + "\n--- MASTER SCHEDULE (UTC) ---\n" + "="*80 + "\n")
+        f.write(f"{'Stint':<7} | {'Start Time (UTC)':<22} | {'End Time (UTC)':<22} | {'Driver':<15} | {'Spotter':<15}\n" + "-" * 95 + "\n")
+        for entry in schedule: f.write(f"{entry['stint']:<7} | {entry['startTimeUTC']:<22} | {entry['endTimeUTC']:<22} | {entry['driver']:<15} | {entry['spotter']:<15}\n")
+
+        f.write("\n" + "="*80 + "\n--- MEMBER ITINERARIES (LOCAL TIME) ---\n" + "="*80 + "\n")
+        for name, itinerary in member_itineraries.items():
+            if not itinerary: continue
+            f.write(f"\n--- Itinerary for {name} ---\n")
+            for duty in itinerary:
+                start, end = duty['start_local'], duty['end_local']
+                f.write(f"  {start.strftime('%Y-%m-%d %H:%M')} to {end.strftime('%H:%M')} -> {duty['activity']} {format_duration(end - start)}\n")
 
 def main():
-    """
-    Main function to parse arguments, read data, and generate reports.
-    """
+    """Main function to parse arguments, read data, and generate reports."""
     parser = argparse.ArgumentParser(description="Generate reports from a solved race schedule.")
     parser.add_argument('input_file', help="Path to the solved_schedule.json file.")
-    parser.add_argument('--output-xlsx', help="Path to save the full report as an XLSX file.")
+    parser.add_argument('output_file', help="Path to save the report file.")
+    parser.add_argument('--format', choices=['xlsx', 'csv', 'txt'], default='xlsx', help="Output format for the report.")
     args = parser.parse_args()
 
     try:
         logging.info(f"--- Reading Solved Schedule Data from file: {args.input_file} ---")
-        with open(args.input_file, 'r') as f:
-            solved_data = json.load(f)
-        
-        data = solved_data['raceData']
-        schedule_assignments = solved_data['schedule']
-
+        with open(args.input_file, 'r') as f: solved_data = json.load(f)
+        data, schedule_assignments = solved_data['raceData'], solved_data['schedule']
     except FileNotFoundError:
-        logging.error(f"Input file not found: {args.input_file}")
-        return
+        logging.error(f"Input file not found: {args.input_file}"); return
     except (json.JSONDecodeError, KeyError):
-        logging.error("Invalid or incomplete JSON data provided. Please provide the output file from the solver.")
-        return
+        logging.error("Invalid or incomplete JSON data provided."); return
 
-    # --- Re-calculate necessary parameters ---
-    lap_time_seconds = data['avgLapTimeInSeconds']
-    pit_time_seconds = data['pitTimeInSeconds']
+    lap_time_seconds, pit_time_seconds = data['avgLapTimeInSeconds'], data['pitTimeInSeconds']
     stint_laps = int(data['fuelTankSize'] / data['fuelUsePerLap']) if data['fuelUsePerLap'] > 0 else 0
-    driver_pool = [m for m in data['teamMembers'] if m['role'] in ['Driver Only', 'Driver and Spotter']]
-    spotter_pool = [m for m in data['teamMembers'] if m['role'] in ['Driver and Spotter', 'Spotter Only']]
     
-    # --- Finalize schedule with timestamps and calculate summaries ---
-    final_schedule_output = []
+    driver_pool = [m for m in data['teamMembers'] if m.get('isDriver')]
+    spotter_pool = [m for m in data['teamMembers'] if m.get('isSpotter')]
+    
+    final_schedule_output, current_time = [], datetime.datetime.strptime(data['raceStartUTC'], "%Y-%m-%dT%H:%M:%S.%fZ")
     driver_summary = {driver['name']: {'stints': 0, 'laps': 0} for driver in driver_pool}
     spotter_summary = {member['name']: {'stints': 0} for member in spotter_pool}
-    
-    race_start_utc = datetime.datetime.strptime(data['raceStartUTC'], "%Y-%m-%dT%H:%M:%S.%fZ")
-    current_time = race_start_utc
 
     for assignment in schedule_assignments:
-        start_time = current_time
-        end_time = current_time + datetime.timedelta(seconds=stint_laps * lap_time_seconds)
-        
-        final_schedule_output.append({
-            "stint": assignment['stint'],
-            "startTimeUTC": start_time.strftime('%Y-%m-%d %H:%M:%S'),
-            "endTimeUTC": end_time.strftime('%Y-%m-%d %H:%M:%S'),
-            "driver": assignment['driver'],
-            "spotter": assignment.get('spotter', 'N/A'),
-            "laps": stint_laps
-        })
+        start_time, end_time = current_time, current_time + datetime.timedelta(seconds=stint_laps * lap_time_seconds)
+        final_schedule_output.append({"stint": assignment['stint'], "startTimeUTC": start_time.strftime('%Y-%m-%d %H:%M:%S'), "endTimeUTC": end_time.strftime('%Y-%m-%d %H:%M:%S'), "driver": assignment['driver'], "spotter": assignment.get('spotter', 'N/A'), "laps": stint_laps})
         
         if assignment['driver'] in driver_summary:
             driver_summary[assignment['driver']]['stints'] += 1
@@ -258,13 +252,12 @@ def main():
     
     member_itineraries = generate_member_itineraries(final_schedule_output, data, pit_time_seconds)
 
-    if args.output_xlsx:
-        write_to_xlsx(final_schedule_output, driver_summary, spotter_summary, member_itineraries, args.output_xlsx)
-    else:
-        logging.warning("No XLSX output file specified. Run with --output-xlsx <filename> to generate a report.")
-        # Default to console output if no file is specified
-        # print_to_stdout(final_schedule_output, driver_summary, spotter_summary, None, member_itineraries, args)
-
+    if args.format == 'xlsx':
+        write_to_xlsx(final_schedule_output, driver_summary, spotter_summary, member_itineraries, args.output_file)
+    elif args.format == 'csv':
+        write_to_csv(final_schedule_output, args.output_file)
+    elif args.format == 'txt':
+        write_to_txt(final_schedule_output, driver_summary, spotter_summary, member_itineraries, args.output_file)
 
 if __name__ == '__main__':
     main()
