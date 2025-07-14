@@ -1,6 +1,5 @@
+__pycache__
 *.json
 *.csv
 *.xlsx
-
-
 !test_data/**/*.json
