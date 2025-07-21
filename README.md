@@ -7,18 +7,11 @@ This is a two-part tool designed to generate and report on optimized schedules f
 
 To use these scripts, you need Python 3 and a few external libraries.
 
-1.  **Create a `requirements.txt` file** with the following content:
-    ```
-    pulp
-    numpy
-    pandas
-    openpyxl
-    ```
-
-2.  **Install the dependencies** using pip:
-    ```bash
-    pip install -r requirements.txt
-    ```
+```bash
+python3 -m venv env
+. env/bin/activate
+python3 -m pip install -r requirements.txt
+```
 
 ---
 ## Overview
