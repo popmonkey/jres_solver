@@ -1,10 +1,3 @@
-# Endurance Race Scheduling & Reporting Tool
-
-This is a two-part tool designed to generate and report on optimized schedules for endurance racing teams.
-
----
-## Setup
-
 To use these scripts, you need Python 3 and a few external libraries.
 
 ```bash
@@ -12,6 +5,28 @@ python3 -m venv env
 . env/bin/activate
 python3 -m pip install -r requirements.txt
 ```
+
+---
+
+# Endurance Race Scheduling & Reporting Tool
+
+This is a two-part tool designed to generate and report on optimized schedules for endurance racing teams.
+
+---
+## Table of Contents
+- [Overview](#overview)
+- [Stage 1: `solver.py` - The Schedule Optimizer](#stage-1-solverpy---the-schedule-optimizer)
+  - [How to Run](#how-to-run)
+  - [Understanding Spotter Scheduling Modes](#understanding-spotter-scheduling-modes)
+  - [Key Scheduling Controls (via JSON Input)](#key-scheduling-controls-via-json-input)
+  - [JSON Input Structure](#json-input-structure)
+- [Stage 2: `reporter.py` - The Report Generator](#stage-2-reporterpy---the-report-generator)
+  - [How to Run](#how-to-run-1)
+  - [Output Format Examples](#output-format-examples)
+- [Troubleshooting](#troubleshooting)
+  - [Solver Timeout](#solver-timeout)
+  - [Overly Constrained Problem](#overly-constrained-problem)
+- [How It Works](#how-it-works)
 
 ---
 ## Overview
@@ -279,6 +294,37 @@ The most detailed output. This multi-sheet Excel workbook provides:
 * A **separate sheet for each team member** displaying a color-coded calendar of their duties (Driving, Spotting, Resting) in their specified local time. This is ideal for quick reference during the race.
 
 ---
+## Troubleshooting
+
+If `solver.py` fails to find an optimal solution, it's typically for one of two reasons: the solver ran out of time, or the problem is impossible to solve with the given constraints.
+
+### Solver Timeout
+By default, the solver is given **30 seconds** to find a solution. For complex schedules with many drivers and constraints, this may not be enough time. The time required also depends heavily on the speed of your computer—a modern M2 MacBook will solve much faster than a Raspberry Pi.
+
+* **Solution:** Increase the timeout using the `--time-limit` argument.
+    ```bash
+    python solver.py test_data/24hr.json --time-limit 120
+    ```
+
+### Overly Constrained Problem
+If increasing the timeout doesn't help, it's likely that your parameters have created a problem with no possible solution. The more restrictive your constraints, the harder the problem is to solve.
+
+Here are the factors most likely to make a solution difficult or impossible, from most to least impactful:
+
+1.  **`minimumRestHours`**: This is a very strong constraint. Requesting long, mandatory rest periods for multiple team members severely limits scheduling flexibility.
+2.  **`availability`**: Having too many team members marked as `Unavailable` for overlapping periods can make it impossible to cover all the stints.
+3.  **Small Team Size**: The fewer people available to drive or spot, the fewer options the solver has.
+4.  **`integrated` Spotter Mode**: Requiring a driver *and* a spotter for every single stint is much more restrictive than only scheduling drivers.
+5.  **Low `preferredStints` Values**: If all team members can only do one stint at a time, it can conflict with mandatory rest periods.
+
+**How to Relax Constraints:**
+If you suspect the problem is too constrained, try relaxing the parameters in this order:
+* First, try adding the `--allow-no-spotter` flag if you are using `integrated` or `sequential` spotter mode.
+* Reduce the `minimumRestHours` value for one or more team members.
+* Review the `availability` object. Can any `Unavailable` block be removed?
+* Increase the `preferredStints` value for one or more team members.
+
+---
 ## How It Works
 
 This tool leverages the power of mathematical optimization to solve the complex problem of race scheduling.
@@ -291,3 +337,6 @@ Here's a high-level overview of the process:
 3.  **Objective Function**: The script defines a primary goal, which is to create the most "fair" schedule possible. It does this by minimizing the difference in the number of stints between team members and also minimizing the number of driver/spotter changes to reduce disruption.
 4.  **Solving**: The `pulp` library takes this model and uses an underlying solver (like CBC, which is included with `pulp`) to find the optimal set of "yes" or "no" answers for all the decision variables that satisfies all constraints and best achieves the objective function.
 5.  **Output**: The final, optimal assignments are formatted into the `solved_schedule.json` file, which is then used by `reporter.py` to generate the human-readable reports.
+
+---
+<small>This project was created by popmonkey and Gemini 2.5 Pro</small>
