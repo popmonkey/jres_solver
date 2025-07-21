@@ -1,5 +1,12 @@
+# -*- coding: utf-8 -*-
+"""
+Unit tests for the race scheduling solver script.
+
+:author: popmonkey and Gemini 2.5 Pro
+:copyright: (c) 2025 Jules Cisek.
+:license: MIT, see LICENSE for more details.
+"""
 import unittest
-import json
 import datetime
 from collections import Counter
 import math

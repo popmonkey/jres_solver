@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+"""
+This script formulates and solves an endurance race scheduling problem
+using linear optimization to assign drivers and spotters to stints.
+
+:author: popmonkey and Gemini 2.5 Pro
+:copyright: (c) 2025 Jules Cisek.
+:license: MIT, see LICENSE for more details.
+"""
 import json
 import datetime
 import logging
