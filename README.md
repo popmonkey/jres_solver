@@ -3,6 +3,24 @@
 This is a two-part tool designed to generate and report on optimized schedules for endurance racing teams.
 
 ---
+## Setup
+
+To use these scripts, you need Python 3 and a few external libraries.
+
+1.  **Create a `requirements.txt` file** with the following content:
+    ```
+    pulp
+    numpy
+    pandas
+    openpyxl
+    ```
+
+2.  **Install the dependencies** using pip:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+---
 ## Overview
 
 The system consists of two main scripts:
@@ -266,3 +284,17 @@ The most detailed output. This multi-sheet Excel workbook provides:
 * A **Summaries** sheet with stint and lap counts for all drivers and spotters.
 * A **Master Schedule** sheet with the full event schedule in UTC.
 * A **separate sheet for each team member** displaying a color-coded calendar of their duties (Driving, Spotting, Resting) in their specified local time. This is ideal for quick reference during the race.
+
+---
+## How It Works
+
+This tool leverages the power of mathematical optimization to solve the complex problem of race scheduling.
+
+The core of `solver.py` is the **`pulp`** library, a popular open-source package for modeling and solving linear programming (LP) and mixed-integer programming (MIP) problems in Python.
+
+Here's a high-level overview of the process:
+1.  **Model Formulation**: The script reads the JSON input and translates the race parameters, team member roles, and constraints (like availability, rest times, and consecutive stint limits) into a mathematical model.
+2.  **Decision Variables**: It creates binary decision variables for each possible assignment (e.g., "should Driver A take Stint 5?").
+3.  **Objective Function**: The script defines a primary goal, which is to create the most "fair" schedule possible. It does this by minimizing the difference in the number of stints between team members and also minimizing the number of driver/spotter changes to reduce disruption.
+4.  **Solving**: The `pulp` library takes this model and uses an underlying solver (like CBC, which is included with `pulp`) to find the optimal set of "yes" or "no" answers for all the decision variables that satisfies all constraints and best achieves the objective function.
+5.  **Output**: The final, optimal assignments are formatted into the `solved_schedule.json` file, which is then used by `reporter.py` to generate the human-readable reports.
