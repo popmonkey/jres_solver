@@ -97,7 +97,7 @@ def _add_participant_model(prob, data, participants, stints, var_prefix, stint_l
 
     return prob, work_vars
 
-def solve_schedule(data, time_limit, spotter_mode='none', allow_no_spotter=False):
+def solve_schedule(data, time_limit, spotter_mode='none', allow_no_spotter=False, optimality_gap=0.0):
     """Main function to formulate and solve the scheduling problem based on the chosen mode."""
     lap_time_seconds = data['avgLapTimeInSeconds']
     pit_time_seconds = data['pitTimeInSeconds']
@@ -127,10 +127,10 @@ def solve_schedule(data, time_limit, spotter_mode='none', allow_no_spotter=False
 
     spot_vars = {}
     solve_duration = 0.0
+    solver = pulp.PULP_CBC_CMD(msg=0, timeLimit=time_limit, gapRel=optimality_gap)
 
     if spotter_mode == 'sequential' and spotter_pool:
         logging.info("--- Sequential Mode: Step 1: Solving for Drivers ---")
-        solver = pulp.PULP_CBC_CMD(msg=0, timeLimit=time_limit)
         start_time_1 = time.time()
         prob.solve(solver)
         end_time_1 = time.time()
@@ -174,8 +174,7 @@ def solve_schedule(data, time_limit, spotter_mode='none', allow_no_spotter=False
                 for s in stints:
                     prob += drive_vars[(member['name'], s)] + spot_vars[(member['name'], s)] <= 1, f"NoDriveAndSpot_{member['name']}_{s}"
 
-    logging.info(f"--- Solving... (Time limit: {time_limit} seconds) ---")
-    solver = pulp.PULP_CBC_CMD(msg=0, timeLimit=time_limit)
+    logging.info(f"--- Solving... (Time limit: {time_limit}s, Optimality gap: {optimality_gap*100}%) ---")
     start_time = time.time()
     prob.solve(solver)
     end_time = time.time()
@@ -189,10 +188,16 @@ def solve_schedule(data, time_limit, spotter_mode='none', allow_no_spotter=False
 
 def process_results(prob, total_stints, driver_pool, spotter_pool, drive_vars, spot_vars):
     """Processes the PuLP result and prepares the schedule assignments."""
-    if prob.status != pulp.LpStatusOptimal:
-        logging.error(f"Solver did not find an optimal solution. Status: {pulp.LpStatus[prob.status]}")
+    if prob.status not in [pulp.LpStatusOptimal, pulp.LpStatusNotSolved]:
+        logging.error(f"Solver failed. Status: {pulp.LpStatus[prob.status]}")
         return None
-    
+    if prob.status == pulp.LpStatusNotSolved and prob.solutionState() == pulp.LpSolutionInfeasible:
+        logging.error("Solver failed because the model is infeasible.")
+        return None
+
+    if prob.status == pulp.LpStatusNotSolved:
+        logging.warning("Solver stopped due to time limit or optimality gap before proving optimality. A valid schedule was likely found.")
+
     schedule = []
     for s in range(total_stints):
         assigned_driver = next((d['name'] for d in driver_pool if pulp.value(drive_vars.get((d['name'], s))) > 0.5), "N/A")
@@ -213,7 +218,8 @@ def main():
     parser.add_argument('--time-limit', type=int, default=30, help="Maximum time in seconds to let the solver run.")
     parser.add_argument('--quiet', action='store_true', help="Suppress INFO logs.")
     parser.add_argument('--spotter-mode', choices=['none', 'integrated', 'sequential'], default='none', help="Method for scheduling spotters.")
-    parser.add_argument('--allow-no-spotter', action='store_true', help="Allow stints to have no spotter assigned (only applies to integrated/sequential modes).")
+    parser.add_argument('--allow-no-spotter', action='store_true', help="Allow stints to have no spotter assigned.")
+    parser.add_argument('--optimality-gap', type=float, default=0.0, help="Solver stops when the gap to the optimal solution is less than this value (e.g., 0.01 for 1%). Default is 0 (proven optimal).")
     args = parser.parse_args()
 
     setup_logging(args.quiet)
@@ -227,7 +233,7 @@ def main():
         logging.error(f"Failed to read or parse input data: {e}"); return
 
     prob, data, total_stints, stint_laps, driver_pool, spotter_pool, drive_vars, spot_vars, solve_duration = solve_schedule(
-        data, args.time_limit, args.spotter_mode, args.allow_no_spotter
+        data, args.time_limit, args.spotter_mode, args.allow_no_spotter, args.optimality_gap
     )
     
     if prob is None: return
