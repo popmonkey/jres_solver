@@ -219,7 +219,7 @@ def main():
     parser.add_argument('--quiet', action='store_true', help="Suppress INFO logs.")
     parser.add_argument('--spotter-mode', choices=['none', 'integrated', 'sequential'], default='none', help="Method for scheduling spotters.")
     parser.add_argument('--allow-no-spotter', action='store_true', help="Allow stints to have no spotter assigned.")
-    parser.add_argument('--optimality-gap', type=float, default=0.0, help="Solver stops when the gap to the optimal solution is less than this value (e.g., 0.01 for 1%). Default is 0 (proven optimal).")
+    parser.add_argument('--optimality-gap', type=float, default=0.0, help="Solver stops when the gap to the optimal solution is less than this value (e.g., 0.01 for 1%%). Default is 0 (proven optimal).")
     args = parser.parse_args()
 
     setup_logging(args.quiet)

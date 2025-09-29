@@ -3,3 +3,5 @@ __pycache__
 *.csv
 *.xlsx
 !test_data/**/*.json
+build/
+dist/

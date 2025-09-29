@@ -10,7 +10,7 @@ python3 -m pip install -r requirements.txt
 
 # JSON.Racing Enduro Scheduler (JRES) Solver
 
-This is a two-part tool designed to generate and report on optimized schedules for endurance racing teams.
+This is a two-part tool designed to generate optimized schedules for endurance racing teams.
 
 ---
 ## Table of Contents
