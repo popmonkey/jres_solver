@@ -8,6 +8,8 @@ jobs:
   build:
     permissions:
       contents: write
+      id-token: write
+      attestations: write      
       
     strategy:
       matrix:
@@ -30,7 +32,7 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Build executables (Unix)
+      - name: Build executables (Unix/macOS)
         if: runner.os != 'Windows'
         run: |
           # Build the solver executable
@@ -66,7 +68,7 @@ jobs:
             --hidden-import="openpyxl" `
             formatter.py
 
-      - name: Package the application bundle (Unix)
+      - name: Package the application bundle (Unix/macOS)
         if: runner.os != 'Windows'
         run: |
           tar -czvf jres-${{ matrix.os }}.tar.gz -C dist/ .
