@@ -38,12 +38,12 @@ jobs:
             --hidden-import="uuid" \
             solver.py
           
-          # Build the reporter executable
+          # Build the formatter executable
           pyinstaller \
-            --name reporter \
+            --name formatter \
             --hidden-import="pandas" \
             --hidden-import="openpyxl" \
-            reporter.py
+            formatter.py
 
       - name: Build executables (Windows)
         if: runner.os == 'Windows'
@@ -56,12 +56,12 @@ jobs:
             --hidden-import="uuid" `
             solver.py
           
-          # Build the reporter executable
+          # Build the formatter executable
           pyinstaller `
-            --name reporter `
+            --name formatter `
             --hidden-import="pandas" `
             --hidden-import="openpyxl" `
-            reporter.py
+            formatter.py
 
       - name: Package the application bundle (Unix)
         if: runner.os != 'Windows'

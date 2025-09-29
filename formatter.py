@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 This script reads a solved race schedule from a JSON file and generates
-various reports, including XLSX, CSV, and formatted text files.
+various output files, including XLSX, CSV, and formatted text files.
 
 :author: popmonkey and Gemini 2.5 Pro
 :copyright: (c) 2025 Jules Cisek.
@@ -114,8 +114,8 @@ def generate_member_itineraries(schedule, data, pit_time_seconds, has_spotters):
         
     return final_itineraries
 
-def write_report(schedule, data, filename, format):
-    """Main function to generate the report in the specified format."""
+def write_output(schedule, data, filename, format):
+    """Main function to generate the output in the specified format."""
     has_spotters = 'spotter' in schedule[0] if schedule else False
     
     stint_laps = int(data['fuelTankSize'] / data['fuelUsePerLap']) if data['fuelUsePerLap'] > 0 else 0
@@ -160,7 +160,7 @@ def write_report(schedule, data, filename, format):
 
 def _write_to_xlsx(schedule, driver_summary, spotter_summary, member_itineraries, filename):
     """Writes all data to a multi-sheet XLSX file."""
-    logging.info(f"Writing full schedule report to XLSX: {filename}")
+    logging.info(f"Writing full schedule to XLSX: {filename}")
     wb = Workbook()
     ws_summary = wb.active
     ws_summary.title = "Summaries"
@@ -268,7 +268,7 @@ def _write_to_csv(schedule, filename, has_spotters):
 
 def _write_to_txt(schedule, driver_summary, spotter_summary, member_itineraries, filename):
     """Writes all schedule data to a text file."""
-    logging.info(f"Generating TXT report to file: {filename}")
+    logging.info(f"Generating TXT to file: {filename}")
     with open(filename, 'w') as f:
         f.write("--- DRIVER SUMMARY ---\n" + "="*80 + "\n")
         f.write(f"{'Driver':<20} | {'Total Stints':<15} | {'Total Laps':<15}\n" + "-"*80 + "\n")
@@ -298,19 +298,19 @@ def _write_to_txt(schedule, driver_summary, spotter_summary, member_itineraries,
                 f.write(f"  {duty['start_local'].strftime('%Y-%m-%d %H:%M')} to {duty['end_local'].strftime('%H:%M')} -> {duty['activity']} {format_duration(duty['end_local'] - duty['start_local'])}\n")
 
 def main():
-    """Main function to parse arguments, read data, and generate reports."""
-    parser = argparse.ArgumentParser(description="Generate reports from a solved race schedule.")
+    """Main function to parse arguments, read data, and generate formatted output."""
+    parser = argparse.ArgumentParser(description="Generate formatted output from a solved race schedule.")
     parser.add_argument('input_file', help="Path to the solved_schedule.json file.")
-    parser.add_argument('output_file', help="Path to save the report file.")
-    parser.add_argument('--format', choices=['xlsx', 'csv', 'txt'], default='xlsx', help="Output format for the report.")
+    parser.add_argument('output_file', help="Path to save the output.")
+    parser.add_argument('--format', choices=['xlsx', 'csv', 'txt'], default='xlsx', help="Output format.")
     args = parser.parse_args()
 
     try:
         with open(args.input_file, 'r') as f:
             solved_data = json.load(f)
-        write_report(solved_data['schedule'], solved_data['raceData'], args.output_file, args.format)
+        write_output(solved_data['schedule'], solved_data['raceData'], args.output_file, args.format)
     except Exception as e:
-        logging.error(f"Failed to generate report: {e}", exc_info=True)
+        logging.error(f"Failed to generate output: {e}", exc_info=True)
 
 if __name__ == '__main__':
     main()
