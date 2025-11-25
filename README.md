@@ -1,3 +1,8 @@
+>[!IMPORTANT]
+>The JRES Solver has been rewritten in c++: https://github.com/popmonkey/jres_solver_cpp
+>and that's where further development efforts will continue.
+>This python version will not receive further updates.
+
 To use these scripts, you need Python 3 and a few external libraries.
 
 ```bash
